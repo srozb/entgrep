@@ -20,17 +20,20 @@ proc reportFinding(offset: Natural, blob: string, asJson: bool) =
     echo blob.hexlify
     echo "====================================================="
 
-proc extractBlob(blobSize: Natural, s: Stream, threshold: float, asJson: bool): string {.inline.} =
-  let
-    blob = s.peekStr(blobSize)  # TODO: use var blob from heap
-    trailingChar = s.peekStr(blobSize+1)[blobSize]  # TODO: optimize
-  if blob.entropy > threshold and trailingChar == '\0':
-    discard s.readStr(blobSize)
-    return blob
+proc extractBlob(blob: var string, blobSize: Natural, s: Stream, threshold: float, asJson: bool) {.inline.} =
+  blob = s.peekStr(blobSize)
+  try:
+    let trailingChar = s.peekStr(blobSize+1)[blobSize]  # TODO: optimize
+    if blob.entropy > threshold and trailingChar == '\0':
+      discard s.readStr(blobSize)
+    else:
+      blob = ""
+  except IndexDefect:  # End of file reached.
+    blob = ""
+    return
 
-proc processFile(fn: string, blobSize=48, threshold=5.2, asJson=false) =
+proc processStream(strm: Stream, blobSize=48, threshold=5.2, asJson=false) =
   var 
-    strm = newFileStream(fn, fmRead)
     prev, cur: char
     blob = newStringOfCap(blobSize)
 
@@ -39,24 +42,29 @@ proc processFile(fn: string, blobSize=48, threshold=5.2, asJson=false) =
     cur = strm.peekChar
     if ord(prev) == 0 and ord(cur) != 0:
       let offset = strm.getPosition
-      blob = extractBlob(blobSize, strm, threshold, asJson)
+      blob.extractBlob(blobSize, strm, threshold, asJson)
       if blob == "":
         continue
       reportFinding(offset, blob, asJson)
 
-  strm.close()
+proc processFiles(blobSize: Natural=48, threshold=5.2, asJson=false, files: seq[string]) =
+  for fn in files.items:
+    echo "Processing " & fn & "..."
+    var strm = newFileStream(fn, fmRead)
+    try:
+      processStream(strm, blobSize, threshold, asJson)
+    finally:
+      strm.close()
 
 when isMainModule:
   import cligen
   dispatch(
-    processFile, 
+    processFiles, 
     cmdName="entgrep", 
     doc="a grep for secret stuff", 
     short={
-      "fn": 'f',
       "blobSize": 's',
       "threshold": 't',
       "asJson": 'j'
     }
   )
-  # processFile(r"C:\Temp\image_7988.dmp")
