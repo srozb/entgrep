@@ -16,9 +16,9 @@ func hexlify(buf: string): string =  # TODO: hexlify it easier
 
 proc reportFinding(offset: Natural, blob: string, asJson: bool, fn: string) =
   if asJson:
-    echo "{\"fn\": \"" & fn & "\", " & "\"offset\": \"0x" & offset.toHex & "\", \"entropy\": " & $blob.entropy & ", \"blob\": \"" & blob.hexlify & "\"}"
+    echo fmt"""{{"fn": "{fn}", "offset":"{offset:#x}", "entropy":{blob.entropy:.4f}, "blob":"{blob.hexlify}"}}"""
   else:
-    echo fmt"{fn},0x{offset}: (e:{$blob.entropy}) {blob.hexlify}"
+    echo fmt"{fn},{offset:#x},{blob.entropy:.4f}: {blob.hexlify}"
 
 proc extractBlob(blob: var string, blobSize: Natural, s: Stream, threshold: float, asJson: bool) {.inline.} =
   blob = s.peekStr(blobSize)
@@ -52,7 +52,6 @@ proc processFiles(blobSize: Natural=48, threshold=5.2, asJson=false, files: seq[
     echo "Threshold must fit between 0 and 8."
     return
   for fn in files.items:
-    echo "Processing " & fn & "..."
     var strm = newFileStream(fn, fmRead)
     try:
       processStream(strm, blobSize, threshold, asJson, fn)
